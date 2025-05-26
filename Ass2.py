@@ -1,4 +1,3 @@
-# ass2.py (refactored for 2025 semester)
 import os
 import string
 import numpy as np
@@ -10,7 +9,6 @@ def load_stopwords(filepath='common-english-words.txt'):
     with open(filepath, 'r') as file:
         return file.read().split(',')
 
-# Load query information (the50Queries.txt)
 def load_queries(filepath):
     datasets, titles, descs, narrs = [], [], [], []
     desc_accum, narr_accum = '', ''
