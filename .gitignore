@@ -5,4 +5,10 @@ Group_Code.py
 IFN647-1/
 
 # Ignore macOS system files
-.DS_Store 
+.DS_Store
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd 

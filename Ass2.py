@@ -1,54 +1,52 @@
-# ass2.py
-
+# ass2.py (refactored for 2025 semester)
 import os
 import string
 import numpy as np
 import pandas as pd
 from stemming.porter2 import stem
 
-# Load stopwords
+# Load stopwords list
 def load_stopwords(filepath='common-english-words.txt'):
-    with open(filepath, 'r') as f:
-        stopwords = f.read().split(',')
-    return stopwords
+    with open(filepath, 'r') as file:
+        return file.read().split(',')
 
-# Load queries from the50Queries.txt
+# Load query information (the50Queries.txt)
 def load_queries(filepath):
     datasets, titles, descs, narrs = [], [], [], []
-    desc_text, narr_text = '', ''
-    flag_desc, flag_narr = 0, 0
+    desc_accum, narr_accum = '', ''
+    in_desc, in_narr = False, False
 
-    with open(filepath, 'r') as f:
-        for line in f:
-            if line.startswith('<desc>'):
-                flag_desc = 1
+    with open(filepath, 'r') as file:
+        for line in file:
+            if '<desc>' in line:
+                in_desc = True
                 continue
-            if flag_desc and len(line.strip()) == 0:
-                flag_desc = 0
-                descs.append(desc_text.strip())
-                desc_text = ''
+            if in_desc and line.strip() == '':
+                in_desc = False
+                descs.append(desc_accum.strip())
+                desc_accum = ''
                 continue
-            if flag_desc:
-                desc_text += line.strip() + ' '
-                continue
-
-            if line.startswith('<narr>'):
-                flag_narr = 1
-                continue
-            if flag_narr and len(line.strip()) == 0:
-                flag_narr = 0
-                narrs.append(narr_text.strip())
-                narr_text = ''
-                continue
-            if flag_narr:
-                narr_text += line.strip() + ' '
+            if in_desc:
+                desc_accum += line.strip() + ' '
                 continue
 
-            if line.startswith('<num>'):
-                datasets.append(line.strip('<num> Number: R').strip())
+            if '<narr>' in line:
+                in_narr = True
                 continue
-            if line.startswith('<title>'):
-                titles.append(line.strip('<title> ').strip())
+            if in_narr and line.strip() == '':
+                in_narr = False
+                narrs.append(narr_accum.strip())
+                narr_accum = ''
+                continue
+            if in_narr:
+                narr_accum += line.strip() + ' '
+                continue
+
+            if '<num>' in line:
+                datasets.append(line.replace('<num> Number: R', '').strip())
+                continue
+            if '<title>' in line:
+                titles.append(line.replace('<title> ', '').strip())
                 continue
 
     return pd.DataFrame({
@@ -58,117 +56,294 @@ def load_queries(filepath):
         'narratives': narrs
     })
 
-# For task5 i will code the following function
+# Load evaluation data (relevance judgments)
 def load_feedback():
-    folderpath_feedback = os.getcwd() + r'\dataset\EvaluationBenchmark'
-    list_topic = []
-    list_docid = [] 
-    list_rel = []
+    folder_path = os.path.join(os.getcwd(), 'dataset', 'EvaluationBenchmark')
+    topic_ids, doc_ids, relevance = [], [], []
 
-    for file in os.listdir(folderpath_feedback):
-        with open(os.path.join(folderpath_feedback, file), 'r') as f:
-            for row in f.read().split('\n'):
-                try:
-                    l = row.split()
-                    list_topic.append(l[0])
-                    list_docid.append(l[1])
-                    list_rel.append(l[2])
-                except:
-                    pass # (빈 줄 등 예외 처리)
+    for file in os.listdir(folder_path):
+        with open(os.path.join(folder_path, file), 'r') as f:
+            for line in f:
+                tokens = line.strip().split()
+                if len(tokens) == 3:
+                    topic_ids.append(tokens[0])
+                    doc_ids.append(tokens[1])
+                    relevance.append(int(tokens[2]))
 
     return pd.DataFrame({
-        'topic': list_topic,
-        'docid': list_docid,
-        'actual_rel': [int(val) for val in list_rel]
+        'topic': topic_ids,
+        'docid': doc_ids,
+        'actual_rel': relevance
     })
 
-class DocWords:
-    def __init__(self, docID, terms, doc_len):
-        self.docID = docID          # 문서 ID
-        self.terms = terms          # {'term1': freq1, 'term2': freq2, ...}
-        self.doc_len = doc_len      # 문서의 단어 수 (길이)
+# Class representing a single document
+class Document:
+    def __init__(self, doc_id):
+        self.doc_id = doc_id
+        self.terms = {}       # term: freq dictionary
+        self.length = 0       # number of words in document
 
-    def set_doc_len(self, count):
-        self.doc_len = count
+    def add_terms(self, term_freq):
+        for term, count in term_freq.items():
+            self.terms[term] = self.terms.get(term, 0) + count
 
-    def getDocId(self):
-        return self.docID
+    def __repr__(self):
+        return f"<Document {self.doc_id}: {len(self.terms)} terms, {self.length} words>"
 
-    def getDocLen(self):
-        return self.doc_len
+# Document collection
+class Collection:
+    def __init__(self):
+        self.documents = []
 
-    def get_term_list(self):
-        # 단어-빈도 딕셔너리를 빈도수 기준으로 정렬
-        return dict(sorted(self.terms.items(), key=lambda x:x[1], reverse=True))
+    def add_document(self, document):
+        self.documents.append(document)
 
-    def addTerm(self, tf_dict):
-        # 새로운 term-freq 딕셔너리를 합쳐줌 (이미 있으면 더함)
-        for key in tf_dict:
-            try:
-                self.terms[key] += tf_dict[key]
-            except:
-                self.terms[key] = tf_dict[key]
+    def get_doc_count(self):
+        return len(self.documents)
 
-class BowColl:
-    def __init__(self, Coll, weights):
-        self.Coll = Coll          # DocWords 객체들의 리스트 (컬렉션)
-        self.weights = weights    # 각 문서별 단어 가중치 딕셔너리 리스트
-        self.numOfDocs = 0        # 문서 수
+    def get_doc_frequencies(self):
+        df = {}
+        for doc in self.documents:
+            for term in doc.terms.keys():
+                df[term] = df.get(term, 0) + 1
+        return df
 
-    def addDocWords(self, DocWords):
-        # DocWords 객체를 컬렉션에 추가
-        self.Coll.append(DocWords)
-        self.numOfDocs += 1
+# Document parsing (BoW generation)
+def parse_documents(path, stopwords):
+    collection = Collection()
+    for file in os.listdir(path):
+        doc = Document(doc_id='')
+        in_text_block = False
+        word_count = 0
 
-    def addWeights(self, weights):
-        # 가중치 딕셔너리 추가 (보통 쿼리 확장할 때 사용 가능)
-        self.weights.append(weights)
+        with open(os.path.join(path, file), 'r') as f:
+            for line in f:
+                if 'itemid' in line:
+                    doc.doc_id = ''.join(filter(str.isdigit, line))
+                    continue
+                if '<text>' in line:
+                    in_text_block = True
+                    continue
+                if '</text>' in line:
+                    break
+                if in_text_block:
+                    wc, tf = tokenize_line(line, stopwords)
+                    word_count += wc
+                    doc.add_terms(tf)
 
-    def getNumOfDocs(self):
-        return self.numOfDocs
+        doc.length = word_count
+        collection.add_document(doc)
+    return collection
 
-    def getSummary(self):
-        # 컬렉션에 들어있는 각 문서 요약 출력 (문서ID, term 수, 단어 수 등)
-        for d in self.Coll:
-            print(f"Document {d.docID}: {len(d.terms)} terms, {d.doc_len} words")
-def parse_docs(inputpath, stop_words, include_files=[]):
-    # inputpath: 데이터셋 폴더 경로
-    # stop_words: 불용어 리스트
-    # include_files: 특정 파일만 처리할 때 (비워두면 전체)
+# Text preprocessing and BoW generation
+def tokenize_line(text, stopwords):
+    strip_items = ['<p>', '</p>', '&quot;']
+    for item in strip_items:
+        text = text.replace(item, '')
+    text = text.translate(str.maketrans('', '', string.digits))
+    text = text.translate(str.maketrans(string.punctuation, ' '*len(string.punctuation)))
+    text = text.lower().strip()
 
-    bow_coll = BowColl([], [])  # 새로운 BowColl 초기화
+    words = text.split()
+    valid_words = [w for w in words if len(w) >= 3]
+    tokens = [stem(w) for w in valid_words if w not in stopwords]
 
-    for file_path in os.listdir(inputpath):
-        if len(include_files) == 0 or (file_path in include_files):
-            curr_doc = DocWords(docID='', terms={}, doc_len=0)
-            word_count = 0
-            flag = 0
-            line_doc = {}
+    term_freq = {}
+    for token in tokens:
+        term_freq[token] = term_freq.get(token, 0) + 1
 
-            with open(os.path.join(inputpath, file_path), 'r') as f:
-                for line in f:
-                    # 문서 ID 읽기
-                    if 'itemid' in line:
-                        bits = line.split()
-                        for b in bits:
-                            if b.startswith('itemid'):
-                                b = b.translate(str.maketrans('', '', string.ascii_letters)) \
-                                     .translate(str.maketrans('', '', string.punctuation))
-                                curr_doc.docID = b
-                                break
+    return len(words), term_freq
 
-                    # <text> ~ </text> 사이만 처리
-                    if line.startswith('<text>'):
-                        flag = 1
-                        continue
-                    if line.startswith('</text>'):
-                        break
-                    if flag == 1:
-                        line_word_count, line_doc = parse_query(line, stop_words)
-                        word_count += line_word_count
-                        curr_doc.addTerm(line_doc)
+# Calculate document frequency (for IDF)
+def calculate_document_frequency(collection, verbose=False):
+    df = collection.get_doc_frequencies()
+    if verbose:
+        print(f"Document Frequency (total terms: {len(df)}):")
+        for term, count in sorted(df.items(), key=lambda x: x[1], reverse=True):
+            print(f"{term}: {count}")
+    return df
 
-            curr_doc.doc_len = word_count  # 문서 길이 저장
-            bow_coll.addDocWords(curr_doc) # 컬렉션에 추가
 
-    return bow_coll
+########################################################
+# For task1 BM25IR
+########################################################
+
+def compute_bm25(collection, query_terms, doc_freqs, k1=1.2, k2=500, b=0.75):
+    N = collection.get_doc_count()
+    avg_doc_len = sum(doc.length for doc in collection.documents) / N
+    scores = {}
+
+    for doc in collection.documents:
+        score = 0
+        dl = doc.length
+        K = k1 * ((1 - b) + b * (dl / avg_doc_len))
+
+        for term, qf in query_terms.items():
+            fi = doc.terms.get(term, 0)
+            ni = doc_freqs.get(term, 0)
+
+            if ni == 0 or fi == 0:
+                continue  # Skip terms not in doc or collection
+
+            idf = np.log10(1 + (N - ni + 0.5) / (ni + 0.5))
+            term_weight = idf * ((k1 + 1) * fi) / (K + fi) * ((k2 + 1) * qf) / (k2 + qf)
+            score += term_weight
+
+        scores[doc.doc_id] = score
+
+    # Sort in descending order
+    ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return ranked_docs
+
+# Main Task1 execution function
+def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=15):
+    os.makedirs(output_dir, exist_ok=True)
+
+    for idx, row in query_df.iterrows():
+        dataset_id = row['dataset']
+        dataset_path = os.path.join(dataset_base_path, f'Dataset{dataset_id}')
+        collection = parse_documents(dataset_path, stopwords)
+
+        # Query tokenization (based on title)
+        _, query_terms = tokenize_line(row['titles'], stopwords)
+
+        # Calculate document frequency
+        df = calculate_document_frequency(collection, verbose=False)
+
+        # Calculate BM25
+        ranked_docs = compute_bm25(collection, query_terms, df)
+
+        # Save top_n results
+        output_path = os.path.join(output_dir, f'BM25_R{dataset_id}Ranking.dat')
+        with open(output_path, 'w') as f:
+            for doc_id, score in ranked_docs[:top_n]:
+                f.write(f"{doc_id} {score}\n")
+
+        print(f"BM25IR completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
+
+########################################################
+# For task2 # JM_LM (Task 2) - Jelinek-Mercer Language Model
+########################################################
+
+def compute_jm_lm(collection, query_terms, collection_df, lambda_=0.4):
+    scores = {}
+
+    # Total words in collection
+    total_terms_in_coll = sum(
+        sum(doc.terms.values()) for doc in collection.documents
+    )
+
+    for doc in collection.documents:
+        doc_score = 0
+        doc_term_count = sum(doc.terms.values())
+
+        for term in query_terms.keys():
+            f_qi_D = doc.terms.get(term, 0)
+            c_qi = collection_df.get(term, 0)
+
+            # JM smoothing formula
+            p_doc = (1 - lambda_) * (f_qi_D / doc_term_count) if doc_term_count > 0 else 0
+            p_coll = lambda_ * (c_qi / total_terms_in_coll) if total_terms_in_coll > 0 else 0
+
+            # Accumulate log probability (using log10)
+            if (p_doc + p_coll) > 0:
+                doc_score += np.log10(p_doc + p_coll)
+
+        scores[doc.doc_id] = doc_score
+
+    # Sort in descending order
+    ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return ranked_docs
+
+# Main Task 2 execution function
+def run_jm_lm(query_df, stopwords, dataset_base_path, output_dir, top_n=15):
+    os.makedirs(output_dir, exist_ok=True)
+
+    for idx, row in query_df.iterrows():
+        dataset_id = row['dataset']
+        dataset_path = os.path.join(dataset_base_path, f'Dataset{dataset_id}')
+        collection = parse_documents(dataset_path, stopwords)
+
+        # Query tokenization (based on title)
+        _, query_terms = tokenize_line(row['titles'], stopwords)
+
+        # Calculate collection term frequencies
+        collection_df = {}
+        for doc in collection.documents:
+            for term, freq in doc.terms.items():
+                collection_df[term] = collection_df.get(term, 0) + freq
+
+        # Calculate JM_LM
+        ranked_docs = compute_jm_lm(collection, query_terms, collection_df)
+
+        # Save top_n results
+        output_path = os.path.join(output_dir, f'JM_LM_R{dataset_id}Ranking.dat')
+        with open(output_path, 'w') as f:
+            for doc_id, score in ranked_docs[:top_n]:
+                f.write(f"{doc_id} {score}\n")
+
+        print(f"JM_LM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
+
+########################################################
+# For task3 Pseudo-Relevance Feedback
+########################################################
+
+def compute_prrm(collection, pseudo_query, doc_freqs, k1=1.2, k2=500, b=0.75):
+    N = collection.get_doc_count()
+    avg_doc_len = sum(doc.length for doc in collection.documents) / N
+    scores = {}
+
+    for doc in collection.documents:
+        score = 0
+        dl = doc.length
+        K = k1 * ((1 - b) + b * (dl / avg_doc_len))
+
+        for term, qf in pseudo_query.items():
+            fi = doc.terms.get(term, 0)
+            ni = doc_freqs.get(term, 0)
+
+            if ni == 0 or fi == 0:
+                continue
+
+            idf = np.log10(1 + (N - ni + 0.5) / (ni + 0.5))
+            term_score = idf * ((k1 + 1) * fi) / (K + fi) * ((k2 + 1) * qf) / (k2 + qf)
+            score += term_score
+
+        scores[doc.doc_id] = score
+
+    ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    return ranked_docs
+
+def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=15, pseudo_top=10):
+    os.makedirs(output_dir, exist_ok=True)
+
+    for idx, row in query_df.iterrows():
+        dataset_id = row['dataset']
+        dataset_path = os.path.join(dataset_base_path, f'Dataset{dataset_id}')
+        collection = parse_documents(dataset_path, stopwords)
+
+        # Create query BoW
+        _, query_terms = tokenize_line(row['titles'], stopwords)
+        doc_freqs = calculate_document_frequency(collection, verbose=False)
+
+        # Perform initial BM25IR
+        initial_ranked = compute_bm25(collection, query_terms, doc_freqs)
+
+        # Calculate word frequencies from pseudo-relevant documents
+        pseudo_query = {}
+        for doc_id, _ in initial_ranked[:pseudo_top]:
+            doc = next((d for d in collection.documents if d.doc_id == doc_id), None)
+            if doc:
+                for term, freq in doc.terms.items():
+                    pseudo_query[term] = pseudo_query.get(term, 0) + freq
+
+        # Calculate PRRM scores
+        final_ranked = compute_prrm(collection, pseudo_query, doc_freqs)
+
+        # Save top_n results
+        output_path = os.path.join(output_dir, f'My_PRRM_R{dataset_id}Ranking.dat')
+        with open(output_path, 'w') as f:
+            for doc_id, score in final_ranked[:top_n]:
+                f.write(f"{doc_id} {score}\n")
+
+        print(f"PRRM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
