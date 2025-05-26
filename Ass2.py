@@ -194,7 +194,7 @@ def compute_bm25(collection, query_terms, doc_freqs, k1=1.2, k2=500, b=0.75):
     return ranked_docs
 
 # Main Task1 execution function
-def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=15):
+def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
     os.makedirs(output_dir, exist_ok=True)
 
     for idx, row in query_df.iterrows():
@@ -220,10 +220,10 @@ def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=15):
         print(f"BM25IR completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
 
 ########################################################
-# For task2 # JM_LM (Task 2) - Jelinek-Mercer Language Model
+# For task2 # LMRM (Task 2) - Jelinek-Mercer Language Model
 ########################################################
 
-def compute_jm_lm(collection, query_terms, collection_df, lambda_=0.4):
+def compute_lmrm(collection, query_terms, collection_df, lambda_=0.4):
     scores = {}
 
     # Total words in collection
@@ -254,7 +254,7 @@ def compute_jm_lm(collection, query_terms, collection_df, lambda_=0.4):
     return ranked_docs
 
 # Main Task 2 execution function
-def run_jm_lm(query_df, stopwords, dataset_base_path, output_dir, top_n=15):
+def run_lmrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
     os.makedirs(output_dir, exist_ok=True)
 
     for idx, row in query_df.iterrows():
@@ -271,16 +271,16 @@ def run_jm_lm(query_df, stopwords, dataset_base_path, output_dir, top_n=15):
             for term, freq in doc.terms.items():
                 collection_df[term] = collection_df.get(term, 0) + freq
 
-        # Calculate JM_LM
-        ranked_docs = compute_jm_lm(collection, query_terms, collection_df)
+        # Calculate LMRM
+        ranked_docs = compute_lmrm(collection, query_terms, collection_df)
 
         # Save top_n results
-        output_path = os.path.join(output_dir, f'JM_LM_R{dataset_id}Ranking.dat')
+        output_path = os.path.join(output_dir, f'LMRM_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in ranked_docs[:top_n]:
                 f.write(f"{doc_id} {score}\n")
 
-        print(f"JM_LM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
+        print(f"LMRM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
 
 ########################################################
 # For task3 Pseudo-Relevance Feedback
@@ -312,7 +312,7 @@ def compute_prrm(collection, pseudo_query, doc_freqs, k1=1.2, k2=500, b=0.75):
     ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     return ranked_docs
 
-def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=15, pseudo_top=10):
+def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10):
     os.makedirs(output_dir, exist_ok=True)
 
     for idx, row in query_df.iterrows():
