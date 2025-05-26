@@ -1,0 +1,8 @@
+# Ignore Group_Code.py
+Group_Code.py
+
+# Ignore IFN647-1 folder
+IFN647-1/
+
+# Ignore macOS system files
+.DS_Store 
