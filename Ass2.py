@@ -345,3 +345,9 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
                 f.write(f"{doc_id} {score}\n")
 
         print(f"PRRM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
+
+
+########################################################
+# For task4
+########################################################
+
