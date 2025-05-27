@@ -42,6 +42,17 @@ Each file contains the top 12 ranked documents for each query.
   - [ ] Implement new retrieval model
   - [ ] Add evaluation metrics
   - [ ] Compare with existing models
+- [ ] Task 5 - Model Evaluation
+  - [ ] Implement three effectiveness measures
+  - [ ] Evaluate BM25IR model
+  - [ ] Evaluate LMRM model
+  - [ ] Evaluate PRRM model
+  - [ ] Compare evaluation results
+- [ ] Task 6 - Model Recommendation
+  - [ ] Perform significance testing
+  - [ ] Analyze model performance
+  - [ ] Write model recommendation report
+  - [ ] Describe application scenarios
 - [ ] Code Optimization
   - [ ] Improve code efficiency
   - [ ] Add error handling
