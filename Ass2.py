@@ -167,24 +167,24 @@ def calculate_document_frequency(collection, verbose=False):
 ########################################################
 
 def compute_bm25(collection, query_terms, doc_freqs, k1=1.2, k2=500, b=0.75):
-    N = collection.get_doc_count()
-    avg_doc_len = sum(doc.length for doc in collection.documents) / N
+    N = collection.get_doc_count()  # N: total number of documents
+    avg_doc_len = sum(doc.length for doc in collection.documents) / N  # avdl: average document length
     scores = {}
 
     for doc in collection.documents:
         score = 0
-        dl = doc.length
-        K = k1 * ((1 - b) + b * (dl / avg_doc_len))
+        dl = doc.length  # dl: document length
+        K = k1 * ((1 - b) + b * (dl / avg_doc_len))  # K = k1*((1-b) + b*dl/avdl)
 
-        for term, qf in query_terms.items():
-            fi = doc.terms.get(term, 0)
-            ni = doc_freqs.get(term, 0)
+        for term, qf_qi in query_terms.items():
+            f_qi_D = doc.terms.get(term, 0)  # fqi,D: frequency of query term in document
+            n_qi = doc_freqs.get(term, 0)  # nqi: frequency of term in collection
 
-            if ni == 0 or fi == 0:
-                continue  # Skip terms not in doc or collection
+            if n_qi == 0 or f_qi_D == 0:
+                continue
 
-            idf = np.log10(1 + (N - ni + 0.5) / (ni + 0.5))
-            term_weight = idf * ((k1 + 1) * fi) / (K + fi) * ((k2 + 1) * qf) / (k2 + qf)
+            idf = np.log10(1 + (N - n_qi + 0.5) / (n_qi + 0.5))  # IDF = log(1 + (N-nqi+0.5)/(nqi+0.5))
+            term_weight = idf * ((k1 + 1) * f_qi_D) / (K + f_qi_D) * ((k2 + 1) * qf_qi) / (k2 + qf_qi)  # BM25 score formula
             score += term_weight
 
         scores[doc.doc_id] = score
@@ -225,23 +225,21 @@ def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
 
 def compute_lmrm(collection, query_terms, collection_df, lambda_=0.4):
     scores = {}
-
-    # Total words in collection
-    total_terms_in_coll = sum(
+    C_size = sum(  # |C|: total number of words in collection
         sum(doc.terms.values()) for doc in collection.documents
     )
 
     for doc in collection.documents:
         doc_score = 0
-        doc_term_count = sum(doc.terms.values())
+        D_size = sum(doc.terms.values())  # |D|: total number of words in document
 
         for term in query_terms.keys():
-            f_qi_D = doc.terms.get(term, 0)
-            c_qi = collection_df.get(term, 0)
+            f_qi_D = doc.terms.get(term, 0)  # fqi,D: frequency of query term in document
+            c_qi = collection_df.get(term, 0)  # cqi: frequency of term in collection
 
             # JM smoothing formula
-            p_doc = (1 - lambda_) * (f_qi_D / doc_term_count) if doc_term_count > 0 else 0
-            p_coll = lambda_ * (c_qi / total_terms_in_coll) if total_terms_in_coll > 0 else 0
+            p_doc = (1 - lambda_) * (f_qi_D / D_size) if D_size > 0 else 0  # (1-λ)fqi,D/|D|
+            p_coll = lambda_ * (c_qi / C_size) if C_size > 0 else 0  # λcqi/|C|
 
             # Accumulate log probability (using log10)
             if (p_doc + p_coll) > 0:
@@ -328,15 +326,15 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
         initial_ranked = compute_bm25(collection, query_terms, doc_freqs)
 
         # Calculate word frequencies from pseudo-relevant documents
-        pseudo_query = {}
+        expanded_query = {}  # query expanded from pseudo-relevant documents
         for doc_id, _ in initial_ranked[:pseudo_top]:
             doc = next((d for d in collection.documents if d.doc_id == doc_id), None)
             if doc:
                 for term, freq in doc.terms.items():
-                    pseudo_query[term] = pseudo_query.get(term, 0) + freq
+                    expanded_query[term] = expanded_query.get(term, 0) + freq
 
         # Calculate PRRM scores
-        final_ranked = compute_prrm(collection, pseudo_query, doc_freqs)
+        final_ranked = compute_prrm(collection, expanded_query, doc_freqs)
 
         # Save top_n results
         output_path = os.path.join(output_dir, f'My_PRRM_R{dataset_id}Ranking.dat')
@@ -351,3 +349,4 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
 # For task4
 ########################################################
 
+# 내일 여기서 부터 시작할것. 
