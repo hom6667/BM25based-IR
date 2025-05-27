@@ -3,6 +3,7 @@ import string
 import numpy as np
 import pandas as pd
 from stemming.porter2 import stem
+import re
 
 # Load stopwords list
 def load_stopwords(filepath='common-english-words.txt'):
@@ -116,8 +117,11 @@ def parse_documents(path, stopwords):
 
         with open(os.path.join(path, file), 'r') as f:
             for line in f:
-                if 'itemid' in line:
-                    doc.doc_id = ''.join(filter(str.isdigit, line))
+                # Extract itemid from the newsitem tag attribute
+                if '<newsitem' in line and 'itemid="' in line:
+                    match = re.search(r'itemid="(\d+)"', line)
+                    if match:
+                        doc.doc_id = match.group(1)
                     continue
                 if '<text>' in line:
                     in_text_block = True
@@ -177,14 +181,17 @@ def compute_bm25(collection, query_terms, doc_freqs, k1=1.2, k2=500, b=0.75):
         K = k1 * ((1 - b) + b * (dl / avg_doc_len))  # K = k1*((1-b) + b*dl/avdl)
 
         for term, qf_qi in query_terms.items():
-            f_qi_D = doc.terms.get(term, 0)  # fqi,D: frequency of query term in document
-            n_qi = doc_freqs.get(term, 0)  # nqi: frequency of term in collection
+            f_qi_D = doc.terms.get(term, 0)  # f_qi,D: frequency of query term in document
+            n_qi = doc_freqs.get(term, 0)  # n_qi: frequency of term in collection
 
             if n_qi == 0 or f_qi_D == 0:
                 continue
 
-            idf = np.log10(1 + (N - n_qi + 0.5) / (n_qi + 0.5))  # IDF = log(1 + (N-nqi+0.5)/(nqi+0.5))
-            term_weight = idf * ((k1 + 1) * f_qi_D) / (K + f_qi_D) * ((k2 + 1) * qf_qi) / (k2 + qf_qi)  # BM25 score formula
+            # IDF calculation exactly as specified (log2)
+            idf = np.log2(1 + (N - n_qi + 0.5) / (n_qi + 0.5))
+            
+            # BM25 score calculation exactly as specified
+            term_weight = idf * ((k1 + 1) * f_qi_D) / (K + f_qi_D) * ((k2 + 1) * qf_qi) / (k2 + qf_qi)
             score += term_weight
 
         scores[doc.doc_id] = score
@@ -212,10 +219,10 @@ def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
         ranked_docs = compute_bm25(collection, query_terms, df)
 
         # Save top_n results
-        output_path = os.path.join(output_dir, f'BM25_R{dataset_id}Ranking.dat')
+        output_path = os.path.join(output_dir, f'BM25IR_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in ranked_docs[:top_n]:
-                f.write(f"{doc_id} {score}\n")
+                f.write(f"{doc_id} {score:.15f}\n")  # Format score to match specification
 
         print(f"BM25IR completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
 
@@ -234,16 +241,14 @@ def compute_lmrm(collection, query_terms, collection_df, lambda_=0.4):
         D_size = sum(doc.terms.values())  # |D|: total number of words in document
 
         for term in query_terms.keys():
-            f_qi_D = doc.terms.get(term, 0)  # fqi,D: frequency of query term in document
-            c_qi = collection_df.get(term, 0)  # cqi: frequency of term in collection
+            f_qi_D = doc.terms.get(term, 0)  # f_qi,D: frequency of query term in document
+            c_qi = collection_df.get(term, 0)  # c_qi: frequency of term in collection
 
-            # JM smoothing formula
-            p_doc = (1 - lambda_) * (f_qi_D / D_size) if D_size > 0 else 0  # (1-λ)fqi,D/|D|
-            p_coll = lambda_ * (c_qi / C_size) if C_size > 0 else 0  # λcqi/|C|
-
-            # Accumulate log probability (using log10)
-            if (p_doc + p_coll) > 0:
-                doc_score += np.log10(p_doc + p_coll)
+            # JM smoothing formula exactly as specified (log2)
+            if D_size > 0 and C_size > 0:
+                p_doc = (1 - lambda_) * (f_qi_D / D_size)  # (1-λ)f_qi,D/|D|
+                p_coll = lambda_ * (c_qi / C_size)  # λc_qi/|C|
+                doc_score += np.log2(p_doc + p_coll)  # log2((1-λ)f_qi,D/|D| + λc_qi/|C|)
 
         scores[doc.doc_id] = doc_score
 
@@ -276,7 +281,7 @@ def run_lmrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
         output_path = os.path.join(output_dir, f'LMRM_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in ranked_docs[:top_n]:
-                f.write(f"{doc_id} {score}\n")
+                f.write(f"{doc_id} {score:.15f}\n")  # Format score to match specification
 
         print(f"LMRM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
 
@@ -337,10 +342,10 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
         final_ranked = compute_prrm(collection, expanded_query, doc_freqs)
 
         # Save top_n results
-        output_path = os.path.join(output_dir, f'My_PRRM_R{dataset_id}Ranking.dat')
+        output_path = os.path.join(output_dir, f'PRRM_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in final_ranked[:top_n]:
-                f.write(f"{doc_id} {score}\n")
+                f.write(f"{doc_id} {score:.15f}\n")  # Format score to match specification
 
         print(f"PRRM completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
 
