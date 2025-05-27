@@ -246,9 +246,11 @@ def compute_lmrm(collection, query_terms, collection_df, lambda_=0.4):
 
             # JM smoothing formula exactly as specified (log2)
             if D_size > 0 and C_size > 0:
-                p_doc = (1 - lambda_) * (f_qi_D / D_size)  # (1-λ)f_qi,D/|D|
-                p_coll = lambda_ * (c_qi / C_size)  # λc_qi/|C|
-                doc_score += np.log2(p_doc + p_coll)  # log2((1-λ)f_qi,D/|D| + λc_qi/|C|)
+                p_doc = (1 - lambda_) * (f_qi_D / D_size)
+                p_coll = lambda_ * (c_qi / C_size)
+                prob = p_doc + p_coll
+                if prob > 0:
+                    doc_score += np.log2(prob)
 
         scores[doc.doc_id] = doc_score
 
@@ -351,7 +353,26 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
 
 
 ########################################################
-# For task4
+# For task4 
 ########################################################
 
-# 내일 여기서 부터 시작할것. 
+# Task 4: Run all three models (BM25IR, LMRM, PRRM) for all 50 datasets and queries,
+# and save the top 12 ranked documents for each query to the specified output files.
+
+if __name__ == "__main__":
+    # Load stopwords and queries
+    stopwords = load_stopwords('common-english-words.txt')
+    query_df = load_queries('Queries-1.txt')
+
+    dataset_base_path = 'dataset'
+    output_dir = 'RankingOutputs'
+
+    # Run BM25IR
+    run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12)
+
+    # Run LMRM
+    run_lmrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12)
+
+    # Run PRRM
+    run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
+
