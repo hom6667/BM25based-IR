@@ -359,6 +359,110 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
 # Task 4: Run all three models (BM25IR, LMRM, PRRM) for all 50 datasets and queries,
 # and save the top 12 ranked documents for each query to the specified output files.
 
+# if __name__ == "__main__":
+#     # Load stopwords and queries
+#     stopwords = load_stopwords('common-english-words.txt')
+#     query_df = load_queries('Queries-1.txt')
+
+#     dataset_base_path = 'dataset'
+#     output_dir = 'RankingOutputs'
+
+#     # Run BM25IR
+#     run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12)
+
+#     # Run LMRM
+#     run_lmrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12)
+
+#     # Run PRRM
+#     run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
+
+
+########################################################
+# For task5 
+########################################################
+
+########################################################
+# For task5: Evaluation of BM25IR, LMRM, PRRM
+########################################################
+
+def calculate_ap(predicted, relevant):
+    """Average Precision (AP) calculation."""
+    hits, sum_precisions = 0, 0.0
+    for i, doc_id in enumerate(predicted):
+        if doc_id in relevant:
+            hits += 1
+            sum_precisions += hits / (i + 1)
+    return sum_precisions / len(relevant) if relevant else 0.0
+
+def calculate_precision_at_k(predicted, relevant, k=12):
+    """Precision@k calculation."""
+    hits = sum(1 for doc_id in predicted[:k] if doc_id in relevant)
+    return hits / k
+
+def calculate_dcg_at_k(predicted, relevant, k=12):
+    """DCG@k calculation."""
+    dcg = 0.0
+    for i, doc_id in enumerate(predicted[:k]):
+        if doc_id in relevant:
+            dcg += 1 / np.log2(i + 2)  # log2(i+2) because i starts from 0
+    return dcg
+
+def evaluate_model(predicted_file, relevance_file, k=12):
+    """Load predicted and relevant docs and compute AP, P@k, DCG@k."""
+    # Load predicted ranked documents
+    with open(predicted_file, 'r') as f:
+        predicted = [line.strip().split()[0] for line in f if line.strip()]
+    
+    # Load relevant documents
+    with open(relevance_file, 'r') as f:
+        relevant = [line.strip().split()[1] for line in f if line.strip().split()[2] == '1']
+
+    ap = calculate_ap(predicted, relevant)
+    p_at_k = calculate_precision_at_k(predicted, relevant, k)
+    dcg = calculate_dcg_at_k(predicted, relevant, k)
+
+    return ap, p_at_k, dcg
+
+def run_task5_evaluation(output_dir='RankingOutputs', relevance_dir='EvaluationBenchmark', k=12):
+    models = ['BM25IR', 'LMRM', 'PRRM']
+    results = {model: {'AP': [], 'P@12': [], 'DCG@12': []} for model in models}
+
+    for model in models:
+        for i in range(101, 151):
+            pred_file = os.path.join(output_dir, f'{model}_R{i}Ranking.dat')
+            rel_file = os.path.join(relevance_dir, f'Dataset{i}.txt')
+            ap, p12, dcg = evaluate_model(pred_file, rel_file, k)
+            results[model]['AP'].append(ap)
+            results[model]['P@12'].append(p12)
+            results[model]['DCG@12'].append(dcg)
+
+    # Table 1: Average Precision
+    print("\nTable 1. The performance of 3 models on Average Precision")
+    print(f"{'Topic':<6} {'BM25IR':<10} {'LMRM':<10} {'PRRM':<10}")
+    for idx, i in enumerate(range(101, 151)):
+        print(f"R{i:<4} {results['BM25IR']['AP'][idx]:<10.4f} {results['LMRM']['AP'][idx]:<10.4f} {results['PRRM']['AP'][idx]:<10.4f}")
+    print(f"{'MAP':<6} {np.mean(results['BM25IR']['AP']):<10.4f} {np.mean(results['LMRM']['AP']):<10.4f} {np.mean(results['PRRM']['AP']):<10.4f}")
+
+    # Table 2: Precision@12
+    print("\nTable 2. The performance of 3 models on precision@12")
+    print(f"{'Topic':<6} {'BM25IR':<10} {'LMRM':<10} {'PRRM':<10}")
+    for idx, i in enumerate(range(101, 151)):
+        print(f"R{i:<4} {results['BM25IR']['P@12'][idx]:<10.4f} {results['LMRM']['P@12'][idx]:<10.4f} {results['PRRM']['P@12'][idx]:<10.4f}")
+    print(f"{'Average':<6} {np.mean(results['BM25IR']['P@12']):<10.4f} {np.mean(results['LMRM']['P@12']):<10.4f} {np.mean(results['PRRM']['P@12']):<10.4f}")
+
+    # Table 3: DCG@12
+    print("\nTable 3. The performance of 3 models on DCG12")
+    print(f"{'Topic':<6} {'BM25IR':<10} {'LMRM':<10} {'PRRM':<10}")
+    for idx, i in enumerate(range(101, 151)):
+        print(f"R{i:<4} {results['BM25IR']['DCG@12'][idx]:<10.4f} {results['LMRM']['DCG@12'][idx]:<10.4f} {results['PRRM']['DCG@12'][idx]:<10.4f}")
+    print(f"{'Average':<6} {np.mean(results['BM25IR']['DCG@12']):<10.4f} {np.mean(results['LMRM']['DCG@12']):<10.4f} {np.mean(results['PRRM']['DCG@12']):<10.4f}")
+
+    return results
+
+########################################################
+# Run everything: Tasks 1-5
+########################################################
+
 if __name__ == "__main__":
     # Load stopwords and queries
     stopwords = load_stopwords('common-english-words.txt')
@@ -376,3 +480,5 @@ if __name__ == "__main__":
     # Run PRRM
     run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
 
+    # Run Task 5 Evaluation
+    run_task5_evaluation(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
