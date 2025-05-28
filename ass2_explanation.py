@@ -574,6 +574,81 @@ def run_task5_evaluation(output_dir='RankingOutputs', relevance_dir='EvaluationB
 
     return results
 
+def run_task5_evaluation_top10(output_dir='RankingOutputs', relevance_dir='EvaluationBenchmark', k=12):
+    """
+    Runs evaluation for all models and queries, showing only top 10 results.
+    Generates three tables showing only the top 10 performing queries for each metric.
+    """
+    models = ['BM25IR', 'LMRM', 'PRRM']
+    results = {model: {'AP': [], 'P@12': [], 'DCG@12': []} for model in models}
+    query_ids = list(range(101, 151))  # R101 to R150
+
+    # Calculate results for all queries
+    for model in models:
+        for i in range(101, 151):
+            pred_file = os.path.join(output_dir, f'{model}_R{i}Ranking.dat')
+            rel_file = os.path.join(relevance_dir, f'Dataset{i}.txt')
+            ap, p12, dcg = evaluate_model(pred_file, rel_file, k)
+            results[model]['AP'].append(ap)
+            results[model]['P@12'].append(p12)
+            results[model]['DCG@12'].append(dcg)
+
+    # Table 1: Top 10 Average Precision
+    print("\nTable 1. Top 10 queries by Average Precision")
+    print(f"{'Topic':<6} {'BM25IR':<10} {'LMRM':<10} {'PRRM':<10}")
+    
+    # Calculate average AP for each query across models
+    query_ap_scores = []
+    for i in range(len(query_ids)):
+        avg_ap = np.mean([results[model]['AP'][i] for model in models])
+        query_ap_scores.append((query_ids[i], avg_ap))
+    
+    # Sort by average AP and get top 10
+    top10_ap = sorted(query_ap_scores, key=lambda x: x[1], reverse=True)[:10]
+    
+    for query_id, _ in top10_ap:
+        idx = query_ids.index(query_id)
+        print(f"R{query_id:<4} {results['BM25IR']['AP'][idx]:<10.4f} {results['LMRM']['AP'][idx]:<10.4f} {results['PRRM']['AP'][idx]:<10.4f}")
+    print(f"{'MAP':<6} {np.mean(results['BM25IR']['AP']):<10.4f} {np.mean(results['LMRM']['AP']):<10.4f} {np.mean(results['PRRM']['AP']):<10.4f}")
+
+    # Table 2: Top 10 Precision@12
+    print("\nTable 2. Top 10 queries by Precision@12")
+    print(f"{'Topic':<6} {'BM25IR':<10} {'LMRM':<10} {'PRRM':<10}")
+    
+    # Calculate average P@12 for each query across models
+    query_p12_scores = []
+    for i in range(len(query_ids)):
+        avg_p12 = np.mean([results[model]['P@12'][i] for model in models])
+        query_p12_scores.append((query_ids[i], avg_p12))
+    
+    # Sort by average P@12 and get top 10
+    top10_p12 = sorted(query_p12_scores, key=lambda x: x[1], reverse=True)[:10]
+    
+    for query_id, _ in top10_p12:
+        idx = query_ids.index(query_id)
+        print(f"R{query_id:<4} {results['BM25IR']['P@12'][idx]:<10.4f} {results['LMRM']['P@12'][idx]:<10.4f} {results['PRRM']['P@12'][idx]:<10.4f}")
+    print(f"{'Average':<6} {np.mean(results['BM25IR']['P@12']):<10.4f} {np.mean(results['LMRM']['P@12']):<10.4f} {np.mean(results['PRRM']['P@12']):<10.4f}")
+
+    # Table 3: Top 10 DCG@12
+    print("\nTable 3. Top 10 queries by DCG@12")
+    print(f"{'Topic':<6} {'BM25IR':<10} {'LMRM':<10} {'PRRM':<10}")
+    
+    # Calculate average DCG@12 for each query across models
+    query_dcg_scores = []
+    for i in range(len(query_ids)):
+        avg_dcg = np.mean([results[model]['DCG@12'][i] for model in models])
+        query_dcg_scores.append((query_ids[i], avg_dcg))
+    
+    # Sort by average DCG@12 and get top 10
+    top10_dcg = sorted(query_dcg_scores, key=lambda x: x[1], reverse=True)[:10]
+    
+    for query_id, _ in top10_dcg:
+        idx = query_ids.index(query_id)
+        print(f"R{query_id:<4} {results['BM25IR']['DCG@12'][idx]:<10.4f} {results['LMRM']['DCG@12'][idx]:<10.4f} {results['PRRM']['DCG@12'][idx]:<10.4f}")
+    print(f"{'Average':<6} {np.mean(results['BM25IR']['DCG@12']):<10.4f} {np.mean(results['LMRM']['DCG@12']):<10.4f} {np.mean(results['PRRM']['DCG@12']):<10.4f}")
+
+    return results
+
 ########################################################
 # Main Execution
 ########################################################
@@ -586,6 +661,7 @@ if __name__ == "__main__":
     3. Run LMRM for all queries
     4. Run PRRM for all queries
     5. Evaluate all models and print results
+    6. Print top 10 results for each metric
     """
     # Load stopwords and queries
     stopwords = load_stopwords('common-english-words.txt')
@@ -603,5 +679,8 @@ if __name__ == "__main__":
     # Run PRRM
     run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
 
-    # Run Task 5 Evaluation
+    # Run Task 5 Evaluation (all results)
     run_task5_evaluation(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
+    
+    # Run Task 5 Evaluation (top 10 only)
+    run_task5_evaluation_top10(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
