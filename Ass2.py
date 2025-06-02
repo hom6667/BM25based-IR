@@ -534,6 +534,76 @@ def run_task5_evaluation_top10(output_dir='RankingOutputs', relevance_dir='Evalu
 
     return results
 
+def calculate_statistical_significance(model1_scores, model2_scores):
+    """
+    Calculates the statistical significance between two models' performance scores
+    using a paired t-test with a different implementation approach.
+    
+    Args:
+        model1_scores: List of performance scores from first model
+        model2_scores: List of performance scores from second model
+    
+    Returns:
+        tuple: (t_statistic, p_value)
+    """
+    # Calculate differences between paired scores
+    differences = [m1 - m2 for m1, m2 in zip(model1_scores, model2_scores)]
+    
+    # Calculate mean of differences
+    mean_diff = sum(differences) / len(differences)
+    
+    # Calculate standard deviation of differences
+    squared_diffs = [(d - mean_diff) ** 2 for d in differences]
+    std_diff = (sum(squared_diffs) / (len(differences) - 1)) ** 0.5
+    
+    # Calculate standard error
+    std_error = std_diff / (len(differences) ** 0.5)
+    
+    # Calculate t-statistic
+    t_stat = mean_diff / std_error if std_error != 0 else 0
+    
+    # Calculate degrees of freedom
+    df = len(differences) - 1
+    
+    # Calculate p-value using t-distribution
+    # Using a simplified approximation of the t-distribution
+    if abs(t_stat) < 1:
+        p_value = 1 - abs(t_stat) * 0.5
+    else:
+        p_value = 0.5 * (1 - abs(t_stat) / (abs(t_stat) + 2))
+    
+    return t_stat, p_value
+
+def evaluate_model_significance(results):
+    """
+    Evaluates statistical significance between different models
+    using the custom statistical significance calculation.
+    """
+    models = ['BM25IR', 'LMRM', 'PRRM']
+    metrics = ['AP', 'P@12', 'DCG@12']
+    
+    for metric in metrics:
+        print(f"\nStatistical Significance Analysis for {metric}:")
+        print("-" * 50)
+        
+        # Compare each pair of models
+        for i in range(len(models)):
+            for j in range(i + 1, len(models)):
+                model1 = models[i]
+                model2 = models[j]
+                
+                # Get scores for both models
+                scores1 = results[model1][metric]
+                scores2 = results[model2][metric]
+                
+                # Calculate significance
+                t_stat, p_value = calculate_statistical_significance(scores1, scores2)
+                
+                print(f"\n{model1} vs {model2}:")
+                print(f"T-statistic: {t_stat:.4f}")
+                print(f"P-value: {p_value:.4f}")
+                print(f"Significant difference: {'Yes' if p_value < 0.05 else 'No'}")
+
 ########################################################
 # Run everything: Tasks 1-5
 ########################################################
@@ -556,7 +626,10 @@ if __name__ == "__main__":
     run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
 
     # Run Task 5 Evaluation
-    run_task5_evaluation(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
-
+    results = run_task5_evaluation(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
+    
     # Run Task 5 Evaluation Top 10
     run_task5_evaluation_top10(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
+    
+    # Evaluate statistical significance
+    evaluate_model_significance(results)
