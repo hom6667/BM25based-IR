@@ -20,7 +20,7 @@ from stemming.porter2 import stem
 import re
 
 # Load stopwords list
-def load_stopwords(filepath='common-english-words.txt'):
+def load_stopwords(filepath='dataset/common-english-words.txt'):
     """
     Loads a list of common English stopwords from a file.
     Stopwords are common words that are typically filtered out before processing text

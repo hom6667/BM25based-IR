@@ -6,7 +6,7 @@ from stemming.porter2 import stem
 import re
 
 # Load stopwords list
-def load_stopwords(filepath='common-english-words.txt'):
+def load_stopwords(filepath='dataset/common-english-words.txt'):
     with open(filepath, 'r') as file:
         return file.read().split(',')
 
@@ -423,7 +423,7 @@ def evaluate_model(predicted_file, relevance_file, k=12):
 
     return ap, p_at_k, dcg
 
-def run_task5_evaluation(output_dir='RankingOutputs', relevance_dir='EvaluationBenchmark', k=12):
+def run_task5_evaluation(output_dir='RankingOutputs', relevance_dir='dataset/EvaluationBenchmark', k=12):
     models = ['BM25IR', 'LMRM', 'PRRM']
     results = {model: {'AP': [], 'P@12': [], 'DCG@12': []} for model in models}
 
@@ -459,7 +459,7 @@ def run_task5_evaluation(output_dir='RankingOutputs', relevance_dir='EvaluationB
 
     return results
 
-def run_task5_evaluation_top10(output_dir='RankingOutputs', relevance_dir='EvaluationBenchmark', k=12):
+def run_task5_evaluation_top10(output_dir='RankingOutputs', relevance_dir='dataset/EvaluationBenchmark', k=12):
     """
     Runs evaluation for all models and queries, showing only top 10 results.
     Generates three tables showing only the top 10 performing queries for each metric.
@@ -610,8 +610,8 @@ def evaluate_model_significance(results):
 
 if __name__ == "__main__":
     # Load stopwords and queries
-    stopwords = load_stopwords('common-english-words.txt')
-    query_df = load_queries('Queries-1.txt')
+    stopwords = load_stopwords('dataset/common-english-words.txt')
+    query_df = load_queries('dataset/Queries-1.txt')
 
     dataset_base_path = 'dataset'
     output_dir = 'RankingOutputs'
@@ -626,10 +626,10 @@ if __name__ == "__main__":
     run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
 
     # Run Task 5 Evaluation
-    results = run_task5_evaluation(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
+    results = run_task5_evaluation(output_dir=output_dir, relevance_dir='dataset/EvaluationBenchmark', k=12)
     
     # Run Task 5 Evaluation Top 10
-    run_task5_evaluation_top10(output_dir=output_dir, relevance_dir='EvaluationBenchmark', k=12)
+    run_task5_evaluation_top10(output_dir=output_dir, relevance_dir='dataset/EvaluationBenchmark', k=12)
     
     # Evaluate statistical significance
     evaluate_model_significance(results)
