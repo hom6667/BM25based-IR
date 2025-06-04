@@ -16,7 +16,8 @@ import os
 import string
 import numpy as np
 import pandas as pd
-from stemming.porter2 import stem
+import nltk
+from nltk.stem import PorterStemmer
 import re
 
 # Load stopwords list
@@ -206,6 +207,7 @@ def tokenize_line(text, stopwords):
     6. Stems words
     7. Counts term frequencies
     """
+    stemmer = PorterStemmer()
     strip_items = ['<p>', '</p>', '&quot;']
     for item in strip_items:
         text = text.replace(item, '')
@@ -215,7 +217,7 @@ def tokenize_line(text, stopwords):
 
     words = text.split()
     valid_words = [w for w in words if len(w) >= 3]
-    tokens = [stem(w) for w in valid_words if w not in stopwords]
+    tokens = [stemmer.stem(w) for w in valid_words if w not in stopwords]
 
     term_freq = {}
     for token in tokens:
