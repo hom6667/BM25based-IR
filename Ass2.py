@@ -1,3 +1,30 @@
+"""
+Assignment 2: Implementation and Evaluation of Information Retrieval Models (BM25IR, LMRM, PRRM)
+
+- Dataset: Uses news articles, queries, and evaluation files in the dataset/ folder
+- Main features: Document parsing, BoW generation, ranking with 3 models, evaluation metrics (AP, P@12, DCG@12), and statistical significance analysis
+- Output: Saves ranking results for each model in the RankingOutputs/ folder
+
+[How to Run]
+$ python Ass2.py
+or
+$ python3 Ass2.py
+
+[Folder/File Structure]
+- Ass2.py
+- dataset/
+    - Dataset101 ~ Dataset150 (news article folders)
+    - Queries-1.txt (query file)
+    - common-english-words.txt (stopwords)
+    - EvaluationBenchmark/ (relevance files for evaluation)
+- RankingOutputs/ (created automatically, stores results)
+
+[Required Packages]
+- numpy
+- pandas
+- nltk
+
+"""
 import os
 import string
 import numpy as np
@@ -6,7 +33,6 @@ import nltk
 from nltk.stem import PorterStemmer
 import re
 
-# Load stopwords list
 def load_stopwords(filepath='dataset/common-english-words.txt'):
     with open(filepath, 'r') as file:
         return file.read().split(',')
@@ -56,7 +82,6 @@ def load_queries(filepath):
         'narratives': narrs
     })
 
-# Load evaluation data (relevance judgments)
 def load_feedback():
     folder_path = os.path.join(os.getcwd(), 'dataset', 'EvaluationBenchmark')
     topic_ids, doc_ids, relevance = [], [], []
@@ -76,12 +101,11 @@ def load_feedback():
         'actual_rel': relevance
     })
 
-# Class representing a single document
 class Document:
     def __init__(self, doc_id):
         self.doc_id = doc_id
-        self.terms = {}       # term: freq dictionary
-        self.length = 0       # number of words in document
+        self.terms = {}       
+        self.length = 0      
 
     def add_terms(self, term_freq):
         for term, count in term_freq.items():
@@ -90,7 +114,6 @@ class Document:
     def __repr__(self):
         return f"<Document {self.doc_id}: {len(self.terms)} terms, {self.length} words>"
 
-# Document collection
 class Collection:
     def __init__(self):
         self.documents = []
@@ -108,7 +131,6 @@ class Collection:
                 df[term] = df.get(term, 0) + 1
         return df
 
-# Document parsing (BoW generation)
 def parse_documents(path, stopwords):
     collection = Collection()
     for file in os.listdir(path):
@@ -118,7 +140,6 @@ def parse_documents(path, stopwords):
 
         with open(os.path.join(path, file), 'r') as f:
             for line in f:
-                # Extract itemid from the newsitem tag attribute
                 if '<newsitem' in line and 'itemid="' in line:
                     match = re.search(r'itemid="(\d+)"', line)
                     if match:
@@ -138,7 +159,6 @@ def parse_documents(path, stopwords):
         collection.add_document(doc)
     return collection
 
-# Text preprocessing and BoW generation
 def tokenize_line(text, stopwords):
     stemmer = PorterStemmer()
     strip_items = ['<p>', '</p>', '&quot;']
@@ -158,7 +178,6 @@ def tokenize_line(text, stopwords):
 
     return len(words), term_freq
 
-# Calculate document frequency (for IDF)
 def calculate_document_frequency(collection, verbose=False):
     df = collection.get_doc_frequencies()
     if verbose:
@@ -173,18 +192,18 @@ def calculate_document_frequency(collection, verbose=False):
 ########################################################
 
 def compute_bm25(collection, query_terms, doc_freqs, k1=1.2, k2=500, b=0.75):
-    N = collection.get_doc_count()  # N: total number of documents
-    avg_doc_len = sum(doc.length for doc in collection.documents) / N  # avdl: average document length
+    N = collection.get_doc_count()  
+    avg_doc_len = sum(doc.length for doc in collection.documents) / N 
     scores = {}
 
     for doc in collection.documents:
         score = 0
-        dl = doc.length  # dl: document length
-        K = k1 * ((1 - b) + b * (dl / avg_doc_len))  # K = k1*((1-b) + b*dl/avdl)
+        dl = doc.length  
+        K = k1 * ((1 - b) + b * (dl / avg_doc_len)) 
 
         for term, qf_qi in query_terms.items():
-            f_qi_D = doc.terms.get(term, 0)  # f_qi,D: frequency of query term in document
-            n_qi = doc_freqs.get(term, 0)  # n_qi: frequency of term in collection
+            f_qi_D = doc.terms.get(term, 0)  
+            n_qi = doc_freqs.get(term, 0)  
 
             if n_qi == 0 or f_qi_D == 0:
                 continue
@@ -198,11 +217,9 @@ def compute_bm25(collection, query_terms, doc_freqs, k1=1.2, k2=500, b=0.75):
 
         scores[doc.doc_id] = score
 
-    # Sort in descending order
     ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     return ranked_docs
 
-# Main Task1 execution function
 def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
     os.makedirs(output_dir, exist_ok=True)
 
@@ -211,20 +228,16 @@ def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
         dataset_path = os.path.join(dataset_base_path, f'Dataset{dataset_id}')
         collection = parse_documents(dataset_path, stopwords)
 
-        # Query tokenization (based on title)
         _, query_terms = tokenize_line(row['titles'], stopwords)
 
-        # Calculate document frequency
         df = calculate_document_frequency(collection, verbose=False)
 
-        # Calculate BM25
         ranked_docs = compute_bm25(collection, query_terms, df)
 
-        # Save top_n results
         output_path = os.path.join(output_dir, f'BM25IR_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in ranked_docs[:top_n]:
-                f.write(f"{doc_id} {score:.15f}\n")  # Format score to match specification
+                f.write(f"{doc_id} {score:.15f}\n") 
 
         print(f"BM25IR completed for Query R{dataset_id} - Top {top_n} saved to {output_path}")
 
@@ -234,19 +247,18 @@ def run_bm25ir(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
 
 def compute_lmrm(collection, query_terms, collection_df, lambda_=0.4):
     scores = {}
-    C_size = sum(  # |C|: total number of words in collection
+    C_size = sum(
         sum(doc.terms.values()) for doc in collection.documents
     )
 
     for doc in collection.documents:
         doc_score = 0
-        D_size = sum(doc.terms.values())  # |D|: total number of words in document
+        D_size = sum(doc.terms.values()) 
 
         for term in query_terms.keys():
-            f_qi_D = doc.terms.get(term, 0)  # f_qi,D: frequency of query term in document
-            c_qi = collection_df.get(term, 0)  # c_qi: frequency of term in collection
+            f_qi_D = doc.terms.get(term, 0)
+            c_qi = collection_df.get(term, 0)  
 
-            # JM smoothing formula exactly as specified (log2)
             if D_size > 0 and C_size > 0:
                 p_doc = (1 - lambda_) * (f_qi_D / D_size)
                 p_coll = lambda_ * (c_qi / C_size)
@@ -256,11 +268,9 @@ def compute_lmrm(collection, query_terms, collection_df, lambda_=0.4):
 
         scores[doc.doc_id] = doc_score
 
-    # Sort in descending order
     ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     return ranked_docs
 
-# Main Task 2 execution function
 def run_lmrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
     os.makedirs(output_dir, exist_ok=True)
 
@@ -269,19 +279,15 @@ def run_lmrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12):
         dataset_path = os.path.join(dataset_base_path, f'Dataset{dataset_id}')
         collection = parse_documents(dataset_path, stopwords)
 
-        # Query tokenization (based on title)
         _, query_terms = tokenize_line(row['titles'], stopwords)
 
-        # Calculate collection term frequencies
         collection_df = {}
         for doc in collection.documents:
             for term, freq in doc.terms.items():
                 collection_df[term] = collection_df.get(term, 0) + freq
 
-        # Calculate LMRM
         ranked_docs = compute_lmrm(collection, query_terms, collection_df)
 
-        # Save top_n results
         output_path = os.path.join(output_dir, f'LMRM_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in ranked_docs[:top_n]:
@@ -327,25 +333,20 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
         dataset_path = os.path.join(dataset_base_path, f'Dataset{dataset_id}')
         collection = parse_documents(dataset_path, stopwords)
 
-        # Create query BoW
         _, query_terms = tokenize_line(row['titles'], stopwords)
         doc_freqs = calculate_document_frequency(collection, verbose=False)
 
-        # Perform initial BM25IR
         initial_ranked = compute_bm25(collection, query_terms, doc_freqs)
 
-        # Calculate word frequencies from pseudo-relevant documents
-        expanded_query = {}  # query expanded from pseudo-relevant documents
+        expanded_query = {}
         for doc_id, _ in initial_ranked[:pseudo_top]:
             doc = next((d for d in collection.documents if d.doc_id == doc_id), None)
             if doc:
                 for term, freq in doc.terms.items():
                     expanded_query[term] = expanded_query.get(term, 0) + freq
 
-        # Calculate PRRM scores
         final_ranked = compute_prrm(collection, expanded_query, doc_freqs)
 
-        # Save top_n results
         output_path = os.path.join(output_dir, f'PRRM_R{dataset_id}Ranking.dat')
         with open(output_path, 'w') as f:
             for doc_id, score in final_ranked[:top_n]:
@@ -358,8 +359,7 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
 # For task4 
 ########################################################
 
-# Task 4: Run all three models (BM25IR, LMRM, PRRM) for all 50 datasets and queries,
-# and save the top 12 ranked documents for each query to the specified output files.
+
 
 # if __name__ == "__main__":
 #     # Load stopwords and queries
@@ -379,9 +379,6 @@ def run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseud
 #     run_prrm(query_df, stopwords, dataset_base_path, output_dir, top_n=12, pseudo_top=10)
 
 
-########################################################
-# For task5 
-########################################################
 
 ########################################################
 # For task5: Evaluation of BM25IR, LMRM, PRRM
@@ -411,11 +408,9 @@ def calculate_dcg_at_k(predicted, relevant, k=12):
 
 def evaluate_model(predicted_file, relevance_file, k=12):
     """Load predicted and relevant docs and compute AP, P@k, DCG@k."""
-    # Load predicted ranked documents
     with open(predicted_file, 'r') as f:
         predicted = [line.strip().split()[0] for line in f if line.strip()]
     
-    # Load relevant documents
     with open(relevance_file, 'r') as f:
         relevant = [line.strip().split()[1] for line in f if line.strip().split()[2] == '1']
 
@@ -425,6 +420,8 @@ def evaluate_model(predicted_file, relevance_file, k=12):
 
     return ap, p_at_k, dcg
 
+
+# MAP
 def run_task5_evaluation(output_dir='RankingOutputs', relevance_dir='dataset/EvaluationBenchmark', k=12):
     models = ['BM25IR', 'LMRM', 'PRRM']
     results = {model: {'AP': [], 'P@12': [], 'DCG@12': []} for model in models}
@@ -537,38 +534,20 @@ def run_task5_evaluation_top10(output_dir='RankingOutputs', relevance_dir='datas
     return results
 
 def calculate_statistical_significance(model1_scores, model2_scores):
-    """
-    Calculates the statistical significance between two models' performance scores
-    using a paired t-test with a different implementation approach.
-    
-    Args:
-        model1_scores: List of performance scores from first model
-        model2_scores: List of performance scores from second model
-    
-    Returns:
-        tuple: (t_statistic, p_value)
-    """
-    # Calculate differences between paired scores
     differences = [m1 - m2 for m1, m2 in zip(model1_scores, model2_scores)]
     
-    # Calculate mean of differences
     mean_diff = sum(differences) / len(differences)
     
-    # Calculate standard deviation of differences
     squared_diffs = [(d - mean_diff) ** 2 for d in differences]
     std_diff = (sum(squared_diffs) / (len(differences) - 1)) ** 0.5
     
-    # Calculate standard error
     std_error = std_diff / (len(differences) ** 0.5)
     
-    # Calculate t-statistic
     t_stat = mean_diff / std_error if std_error != 0 else 0
     
-    # Calculate degrees of freedom
     df = len(differences) - 1
     
-    # Calculate p-value using t-distribution
-    # Using a simplified approximation of the t-distribution
+ 
     if abs(t_stat) < 1:
         p_value = 1 - abs(t_stat) * 0.5
     else:
@@ -577,10 +556,7 @@ def calculate_statistical_significance(model1_scores, model2_scores):
     return t_stat, p_value
 
 def evaluate_model_significance(results):
-    """
-    Evaluates statistical significance between different models
-    using the custom statistical significance calculation.
-    """
+
     models = ['BM25IR', 'LMRM', 'PRRM']
     metrics = ['AP', 'P@12', 'DCG@12']
     
