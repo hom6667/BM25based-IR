@@ -18,13 +18,18 @@ $ python3 Ass2.py
     - common-english-words.txt (stopwords)
     - EvaluationBenchmark/ (relevance files for evaluation)
 - RankingOutputs/ (created automatically, stores results)
+- requirements.txt (required packages)
 
 [Required Packages]
 - numpy
 - pandas
 - nltk
 
+[Install Packages]
+$ pip install -r requirements.txt
 """
+
+
 import os
 import string
 import numpy as np
